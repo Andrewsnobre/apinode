@@ -107,7 +107,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     Key: req.file?.originalname,
   });
   const response = await s3.send(commandGetObject);
-  responseData.url = `ipfs://${response.Metadata?.cid}`;
+  responseData.url = `${response.Metadata?.cid}`;
   //}
 
   return res.json({ data: responseData });
