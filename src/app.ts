@@ -37,7 +37,10 @@ const app = express();
 /**
  * Allows for requests from other servers
  */
-app.use(cors());
+//app.use(cors());
+app.use(cors({
+  origin: '*'
+}));
 
 /**
  * Main uploader middleware that configures the final `destination` of the file and how the `filename` would be set once saved
