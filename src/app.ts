@@ -46,27 +46,40 @@ const upload =
   // If production use the s3 client
   NODE_ENV === "production"
     ? multer({
-        storage: multerS3({
-          s3: s3,
-          bucket: FILEBASE_BUCKET,
-          metadata: (_req, file, cb) => {
-            cb(null, { fieldName: file.fieldname });
-          },
-          key: (_req, file, cb) => {
-            cb(null, file.originalname);
-          },
-        }),
-      })
-    : multer({
-        storage: multer.diskStorage({
-          destination: (_req, file, callback) => {
-            callback(null, FILE_DEST);
-          },
-          filename: (_req, file, callback) => {
-            callback(null, file.originalname);
-          },
-        }),
-      });
+      storage: multerS3({
+        s3: s3,
+        bucket: FILEBASE_BUCKET,
+        metadata: (_req, file, cb) => {
+          cb(null, { fieldName: file.fieldname });
+        },
+        key: (_req, file, cb) => {
+          cb(null, file.originalname);
+        },
+      }),
+    })
+    :
+    multer({
+      storage: multerS3({
+        s3: s3,
+        bucket: FILEBASE_BUCKET,
+        metadata: (_req, file, cb) => {
+          cb(null, { fieldName: file.fieldname });
+        },
+        key: (_req, file, cb) => {
+          cb(null, file.originalname);
+        },
+      }),
+    })
+//multer({
+// storage: multer.diskStorage({
+//   destination: (_req, file, callback) => {
+//     callback(null, FILE_DEST);
+//   },
+//  filename: (_req, file, callback) => {
+//    callback(null, file.originalname);
+//   },
+//  }),
+// });
 
 // Endpoints / Routes
 // ========================================================
@@ -85,14 +98,14 @@ app.post("/upload", upload.single("file"), async (req, res) => {
   };
 
   // If production retrieve file data to get the ipfs CID
-  if (NODE_ENV === "production") {
-    const commandGetObject = new GetObjectCommand({
-      Bucket: FILEBASE_BUCKET,
-      Key: req.file?.originalname,
-    });
-    const response = await s3.send(commandGetObject);
-    responseData.url = `ipfs://${response.Metadata?.cid}`;
-  }
+  //if (NODE_ENV === "production") {
+  const commandGetObject = new GetObjectCommand({
+    Bucket: FILEBASE_BUCKET,
+    Key: req.file?.originalname,
+  });
+  const response = await s3.send(commandGetObject);
+  responseData.url = `ipfs://${response.Metadata?.cid}`;
+  //}
 
   return res.json({ data: responseData });
 });
