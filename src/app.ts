@@ -38,9 +38,11 @@ const app = express();
  * Allows for requests from other servers
  */
 //app.use(cors());
-app.use(cors({
-  origin: '*'
-}));
+app.use(
+  cors({
+    origin: "*",
+  })
+);
 
 /**
  * Main uploader middleware that configures the final `destination` of the file and how the `filename` would be set once saved
@@ -49,30 +51,29 @@ const upload =
   // If production use the s3 client
   NODE_ENV === "production"
     ? multer({
-      storage: multerS3({
-        s3: s3,
-        bucket: FILEBASE_BUCKET,
-        metadata: (_req, file, cb) => {
-          cb(null, { fieldName: file.fieldname });
-        },
-        key: (_req, file, cb) => {
-          cb(null, file.originalname);
-        },
-      }),
-    })
-    :
-    multer({
-      storage: multerS3({
-        s3: s3,
-        bucket: FILEBASE_BUCKET,
-        metadata: (_req, file, cb) => {
-          cb(null, { fieldName: file.fieldname });
-        },
-        key: (_req, file, cb) => {
-          cb(null, file.originalname);
-        },
-      }),
-    })
+        storage: multerS3({
+          s3: s3,
+          bucket: FILEBASE_BUCKET,
+          metadata: (_req, file, cb) => {
+            cb(null, { fieldName: file.fieldname });
+          },
+          key: (_req, file, cb) => {
+            cb(null, file.originalname);
+          },
+        }),
+      })
+    : multer({
+        storage: multerS3({
+          s3: s3,
+          bucket: FILEBASE_BUCKET,
+          metadata: (_req, file, cb) => {
+            cb(null, { fieldName: file.fieldname });
+          },
+          key: (_req, file, cb) => {
+            cb(null, file.originalname);
+          },
+        }),
+      });
 //multer({
 // storage: multer.diskStorage({
 //   destination: (_req, file, callback) => {
@@ -102,6 +103,8 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
   // If production retrieve file data to get the ipfs CID
   //if (NODE_ENV === "production") {
+  await new Promise((resolve) => setTimeout(resolve, 30000));
+
   const commandGetObject = new GetObjectCommand({
     Bucket: FILEBASE_BUCKET,
     Key: req.file?.originalname,
