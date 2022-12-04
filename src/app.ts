@@ -103,19 +103,25 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
   // If production retrieve file data to get the ipfs CID
   //if (NODE_ENV === "production") {
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+  responseData.url = "";
+  console.log(responseData.url);
+  console.log("antes");
 
-  const commandGetObject = new GetObjectCommand({
-    Bucket: FILEBASE_BUCKET,
-    Key: req.file?.originalname,
-  });
-  const response = await s3.send(commandGetObject);
-  responseData.url = `${response.Metadata?.cid}`;
-  //}
-
-  return res.json({ data: responseData });
+  while (responseData.url == "") {
+    console.log("dentro");
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const commandGetObject = new GetObjectCommand({
+      Bucket: FILEBASE_BUCKET,
+      Key: req.file?.originalname,
+    });
+    const response = await s3.send(commandGetObject);
+    responseData.url = `${response.Metadata?.cid}`;
+    //}]
+    if (responseData.url != "") {
+      return res.json({ data: responseData });
+    }
+  }
 });
-
 // Exports
 // ========================================================
 export default app;
