@@ -103,7 +103,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
   // If production retrieve file data to get the ipfs CID
   //if (NODE_ENV === "production") {
-  await new Promise((resolve) => setTimeout(resolve, 3000));
+  await new Promise((resolve) => setTimeout(resolve, 5000));
 
   const commandGetObject = new GetObjectCommand({
     Bucket: FILEBASE_BUCKET,
