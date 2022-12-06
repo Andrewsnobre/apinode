@@ -109,7 +109,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
   while (responseData.url == "") {
     console.log("dentro");
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 3000));
     const commandGetObject = new GetObjectCommand({
       Bucket: FILEBASE_BUCKET,
       Key: req.file?.originalname,
