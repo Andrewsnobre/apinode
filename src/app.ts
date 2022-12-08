@@ -116,7 +116,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const response = await s3.send(commandGetObject);
     responseData.url = `${response.Metadata?.cid}`;
     //}]
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
     if (responseData.url != "") {
       return res.json({ data: responseData });
     }
