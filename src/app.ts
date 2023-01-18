@@ -96,12 +96,18 @@ app.get("/", (_req, res) => res.send({ environment: NODE_ENV }));
  * Upload endpoint that accepts an input file field of `file`
  */
 app.post("/upload", upload.single("file"), async (req, res) => {
+  const apiKey = req.header("x-api-key");
   const responseData = {
     file: req.file?.originalname,
     url: `${FILE_SERVER_URL}/${req.file?.originalname}`,
   };
 
-     return res.status(401).json({msg: "Auth Failed, please request your key at contato@ipfs.com.br"});
+  const APIKEY = process.env.KEY1;
+
+  if (APIKEY != apiKey)
+    return res.status(401).json({
+      msg: "Auth Failed, please request your key at contato@ipfs.com.br",
+    });
   // If production retrieve file data to get the ipfs CID
   //if (NODE_ENV === "production") {
   responseData.url = "";
