@@ -55,7 +55,7 @@ const upload =
           s3: s3,
           bucket: FILEBASE_BUCKET,
           metadata: (_req, file, cb) => {
-            cb(null, { fieldName: file.fieldname });
+            cb(null, { fieldName: file.originalname });
           },
           key: (_req, file, cb) => {
             cb(null, file.originalname);
@@ -67,7 +67,7 @@ const upload =
           s3: s3,
           bucket: FILEBASE_BUCKET,
           metadata: (_req, file, cb) => {
-            cb(null, { fieldName: file.fieldname });
+            cb(null, { fieldName: file.originalname });
           },
           key: (_req, file, cb) => {
             cb(null, file.originalname);
