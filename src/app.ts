@@ -104,10 +104,11 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
   const APIKEY = process.env.KEY1;
 
-  if (APIKEY != apiKey)
+  if (APIKEY != apiKey){
     return res.status(401).json({
       msg: "Auth Failed, please request your key at contato@ipfs.com.br",
     });
+  }
   // If production retrieve file data to get the ipfs CID
   //if (NODE_ENV === "production") {
   responseData.url = "";
