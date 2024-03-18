@@ -129,8 +129,9 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       return res.json({ data: responseData });
     }
   }
+  }
 });
-}
+
 // Exports
 // ========================================================
 export default app;
