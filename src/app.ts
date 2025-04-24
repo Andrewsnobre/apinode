@@ -48,7 +48,7 @@ app.use(
  * Main uploaderaaa middleware that configures the final `destination` of the file and how the `filename` would be set once saved
  */
 const upload =
-  // If production use the s3 client
+  // If production use the s3 client ok
   NODE_ENV === "production"
     ? multer({
         storage: multerS3({
