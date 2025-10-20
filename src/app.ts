@@ -12,7 +12,7 @@ import {
   HeadObjectCommandOutput,
 } from "@aws-sdk/client-s3";
 import { randomUUID } from "crypto";
-import helmet from "helmet";
+
 
 // ENV
 // ========================================================
@@ -41,7 +41,7 @@ const s3 = new S3Client({
 // ========================================================
 const app = express();
 
-app.use(helmet());
+
 app.use(
   cors({
     origin: "*", // ajuste se precisar
