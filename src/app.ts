@@ -11,23 +11,21 @@ import {
   HeadObjectCommand,
   HeadObjectCommandOutput,
 } from "@aws-sdk/client-s3";
-import { randomUUID } from "crypto";
 
-
-// ENV
+// ENV VARS
 // ========================================================
 config();
 
-const NODE_ENV = process.env.NODE_ENV || "development";
-const FILE_SERVER_URL = process.env.FILE_SERVER_URL || "http://localhost:5002";
-const FILEBASE_BUCKET = process.env.FILEBASE_BUCKET || "";
-const FILEBASE_REGION = process.env.FILEBASE_REGION || "";
-const FILEBASE_ACCESS_KEY = process.env.FILEBASE_ACCESS_KEY || "";
-const FILEBASE_SECRET_KEY = process.env.FILEBASE_SECRET_KEY || "";
-const API_KEY = process.env.KEY1 || "";
-const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || "100");
+const NODE_ENV: string = process.env.NODE_ENV || "development";
+const FILE_SERVER_URL: string = process.env.FILE_SERVER_URL || "http://localhost:5002";
+const FILEBASE_BUCKET: string = process.env.FILEBASE_BUCKET || "";
+const FILEBASE_REGION: string = process.env.FILEBASE_REGION || "";
+const FILEBASE_ACCESS_KEY: string = process.env.FILEBASE_ACCESS_KEY || "";
+const FILEBASE_SECRET_KEY: string = process.env.FILEBASE_SECRET_KEY || "";
+const APIKEY: string = process.env.KEY1 || "";
+const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || "100"); // 100 MB por padrão
 
-// S3 (Filebase)
+// Configured AWS S3 Client For Filebase
 const s3 = new S3Client({
   endpoint: "https://s3.filebase.com",
   region: FILEBASE_REGION,
@@ -37,32 +35,43 @@ const s3 = new S3Client({
   },
 });
 
-// App
+// Init
 // ========================================================
+/**
+ * Initial ExpressJS
+ */
 const app = express();
-
-
-app.use(
-  cors({
-    origin: "*", // ajuste se precisar
-  })
-);
-app.use(express.json());
 
 // Middlewares
 // ========================================================
-// 1) Auth por x-api-key ANTES do upload
+/**
+ * Allows for requests from other servers
+ */
+app.use(
+  cors({
+    origin: "*",
+  })
+);
+
+app.use(express.json());
+
+/**
+ * Auth middleware via x-api-key (antes do upload, pra evitar custo)
+ */
 function apiKeyGuard(req: Request, res: Response, next: NextFunction) {
   const apiKey = req.header("x-api-key");
-  if (!API_KEY || apiKey !== API_KEY) {
+  if (!APIKEY || apiKey !== APIKEY) {
     return res.status(401).json({
-      msg: "Auth Failed, solicite sua chave em contato@ipfs.com.br",
+      msg: "Auth Failed, please request your key at contato@ipfs.com.br",
     });
   }
   return next();
 }
 
-// 2) Multer S3 (uma única configuração)
+/**
+ * Uploader configurado para Filebase S3, mantendo a key como o nome original
+ * Limite de 100 MB
+ */
 const upload = multer({
   storage: multerS3({
     s3,
@@ -72,18 +81,12 @@ const upload = multer({
       cb(null, { originalname: file.originalname });
     },
     key: (_req, file, cb) => {
-      // evita colisão e mantém nome visível
-      const key = `${Date.now()}-${randomUUID()}-${file.originalname}`;
-      cb(null, key);
+      // Mantém exatamente o nome original, como no seu fluxo atual
+      cb(null, file.originalname);
     },
   }),
   limits: {
-    fileSize: MAX_FILE_SIZE_MB * 1024 * 1024, // MB
-  },
-  fileFilter: (_req, file, cb) => {
-    // ajuste se quiser restringir tipos
-    if (!file.originalname) return cb(new Error("Arquivo inválido"));
-    cb(null, true);
+    fileSize: MAX_FILE_SIZE_MB * 1024 * 1024, // 100 MB
   },
 });
 
@@ -91,95 +94,79 @@ const upload = multer({
 // ========================================================
 /**
  * Espera o metadado `cid` aparecer via HeadObject em backoff exponencial,
- * até `maxWaitMs` (padrão 30s). Retorna `cid` ou `null` se não aparecer a tempo.
+ * com tempo máximo (default ~45s). Retorna o cid ou null se não aparecer.
  */
-async function waitForCid(
+async function waitCidWithBackoff(
   bucket: string,
   key: string,
-  opts?: { maxWaitMs?: number; maxAttempts?: number }
+  { maxWaitMs = 45_000 }: { maxWaitMs?: number } = {}
 ): Promise<string | null> {
-  const maxWaitMs = opts?.maxWaitMs ?? 30_000;
-  const maxAttempts = opts?.maxAttempts ?? 6; // ~ (0.5s, 1s, 2s, 4s, 8s, 16s) ~= 31.5s
-  let attempt = 0;
-  let delay = 500;
-
   const started = Date.now();
+  let delay = 500; // 0.5s, 1s, 2s, 4s, 4s...
 
-  while (attempt < maxAttempts && Date.now() - started < maxWaitMs) {
+  while (Date.now() - started < maxWaitMs) {
     try {
       const head = (await s3.send(
         new HeadObjectCommand({ Bucket: bucket, Key: key })
       )) as HeadObjectCommandOutput;
 
-      const cid = head.Metadata?.cid || head.Metadata?.CID || head.Metadata?.Cid;
+      const cid =
+        head.Metadata?.cid || head.Metadata?.CID || head.Metadata?.Cid || "";
       if (cid && cid.trim().length > 0) {
         return cid.trim();
       }
-    } catch (err) {
-      // se 404 ou erro transitório, apenas tenta novamente
+    } catch (_err) {
+      // 404/403/transient -> ignora e tenta novamente
     }
 
     await new Promise((r) => setTimeout(r, delay));
     delay = Math.min(delay * 2, 4000);
-    attempt++;
   }
 
   return null;
 }
 
-// Rotas
+// Endpoints / Routes
 // ========================================================
-app.get("/healthz", (_req, res) => {
-  res.json({ ok: true, environment: NODE_ENV });
-});
-
+/**
+ * Main endpoint to verify that things are working and what environment mode it's running in
+ */
 app.get("/", (_req, res) => res.send({ environment: NODE_ENV }));
 
 /**
- * Upload endpoint
- * - valida API Key antes
- * - faz upload para Filebase
- * - tenta pegar o CID com backoff (sem travar)
- * - se não achar a tempo, retorna 202 com dados para o cliente checar depois
+ * Healthcheck simples
+ */
+app.get("/healthz", (_req, res) => res.json({ ok: true, environment: NODE_ENV }));
+
+/**
+ * Upload endpoint que mantém o MESMO JSON de retorno já usado pelos apps:
+ *   { data: { file, url } }
+ * - `url` começa "" e vira o CID quando disponível
+ * - sem while infinito; usa timeout + backoff
+ * - se não achar a tempo, retorna 504 com o MESMO shape (url = "")
  */
 app.post("/upload", apiKeyGuard, upload.single("file"), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ msg: "Nenhum arquivo enviado (field: file)." });
-    }
-
-    // @ts-ignore - multer-s3 adiciona `key` em req.file
-    const key: string = req.file.key || req.file.originalname;
-    const originalname = req.file.originalname;
-
-    // tenta obter o CID (sem while infinito)
-    const cid = await waitForCid(FILEBASE_BUCKET, key);
-
-    // monta payload base
-    const base = {
-      file: originalname,
-      key,
-      // URL "local" antiga que você tinha:
-      file_server_url: `${FILE_SERVER_URL}/${originalname}`,
+    // monta exatamente como antes
+    const responseData: { file?: string; url?: string } = {
+      file: req.file?.originalname,
+      url: `${FILE_SERVER_URL}/${req.file?.originalname}`,
     };
 
+    // comportamento antigo: zera a url e só preenche com o CID quando existir
+    responseData.url = "";
+
+    // tenta obter o CID com timeout (sem travar servidor)
+    const key = req.file?.originalname as string;
+    const cid = await waitCidWithBackoff(FILEBASE_BUCKET, key, { maxWaitMs: 45_000 });
+
     if (cid) {
-      return res.status(200).json({
-        data: {
-          ...base,
-          cid,
-          // links úteis (ajuste se preferir)
-          ipfs_uri: `ipfs://${cid}`,
-          gateway_url: `https://ipfs.filebase.io/ipfs/${cid}`,
-        },
-      });
+      responseData.url = cid; // MESMA semântica: url passa a ser o CID
+      return res.status(200).json({ data: responseData });
     }
 
-    // ainda não propagou — não trava o servidor
-    return res.status(202).json({
-      msg: "Arquivo recebido. CID ainda não disponível. Tente novamente em instantes.",
-      data: { ...base },
-    });
+    // não achou a tempo -> evita loop infinito; mantém MESMO shape
+    return res.status(504).json({ data: responseData });
   } catch (err: any) {
     return res.status(500).json({
       msg: "Falha no upload",
@@ -189,6 +176,7 @@ app.post("/upload", apiKeyGuard, upload.single("file"), async (req, res) => {
 });
 
 // Global error handler (fallback)
+// ========================================================
 app.use(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   (err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -199,4 +187,6 @@ app.use(
   }
 );
 
+// Exports
+// ========================================================
 export default app;
